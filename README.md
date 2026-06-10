@@ -13,12 +13,6 @@ Click below to see the wallet in action:
 
 [![Demo Video](assets/docs/demo-thumbnail.png)](assets/docs/demo.mp4)
 
-## 🔍 About WDK
-
-This repository is part of the [**WDK (Wallet Development Kit)**](https://wallet.tether.io/) project, which empowers developers to build secure, non-custodial wallets with unified blockchain access, stateless architecture, and complete user control. 
-
-For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.tether.io](https://docs.wallet.tether.io).
-
 ## 🌟 Features
 
 ### Multi-Chain Support
