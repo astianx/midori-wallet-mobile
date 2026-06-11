@@ -1,6 +1,6 @@
 {
   "name": "midori-wallet-mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.1",
   "description": "Midori Wallet is a self-custodial multi-chain wallet for Android and iOS.",
   "scripts": {
@@ -16,6 +16,7 @@
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",
     "preinstall": "npm install @tetherto/pear-wrk-wdk --ignore-scripts --legacy-peer-deps 2>/dev/null || true",
+    "postinstall": "node scripts/patch-node-modules.mjs",
     "test:e2e": "export ANDROID_HOME=$HOME/Library/Android/sdk && export PATH=$PATH:$ANDROID_HOME/platform-tools && wdio run test/wdio.conf.ts",
     "test:e2e:ios": "export ANDROID_HOME=$HOME/Library/Android/sdk && export PATH=$PATH:$ANDROID_HOME/platform-tools && wdio run test/wdio.ios.conf.ts",
     "test:e2e:android": "export ANDROID_HOME=$HOME/Library/Android/sdk && export PATH=$PATH:$ANDROID_HOME/platform-tools && wdio run test/wdio.conf.ts",

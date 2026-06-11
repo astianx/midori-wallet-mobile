@@ -36,8 +36,22 @@ const wdkConfig = configureMetroForWDK(config);
 
 // Now wrap the WDK's resolveRequest with our custom alias logic
 const wdkResolveRequest = wdkConfig.resolver.resolveRequest;
+const webAliases = {
+  '@tetherto/wdk-react-native-provider': path.resolve(
+    __dirname,
+    'src/web/wdk-react-native-provider.tsx'
+  ),
+  '@tetherto/wdk-uikit-react-native': path.resolve(
+    __dirname,
+    'src/web/wdk-uikit-react-native.tsx'
+  ),
+};
 
 wdkConfig.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && webAliases[moduleName]) {
+    return context.resolveRequest(context, webAliases[moduleName], platform);
+  }
+
   // Handle @/ alias
   if (moduleName.startsWith('@/')) {
     const resolvedPath = moduleName.replace('@/', path.resolve(__dirname, 'src') + '/');
