@@ -1,7 +1,8 @@
-import { AssetTicker, useWallet, WDKService } from '@tetherto/wdk-react-native-provider';
+import { AssetTicker, WDKService } from '@tetherto/wdk-react-native-provider';
 import { CryptoAddressInput } from '@tetherto/wdk-uikit-react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
+import { hasUsableAddress, useWalletReadiness } from '@/hooks/use-wallet-readiness';
 import { RefreshCw } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -38,7 +39,8 @@ import { toast } from 'sonner-native';
 export default function SendDetailsScreen() {
   const insets = useSafeAreaInsets();
   const router = useDebouncedNavigation();
-  const { refreshWalletBalance } = useWallet();
+  const { refreshWalletBalance, addresses, ensureWalletAddresses, isResolvingAddresses } =
+    useWalletReadiness();
   const params = useLocalSearchParams();
   const scrollViewRef = useRef<ScrollView>(null);
   const amountSectionYPosition = useRef<number>(0);
@@ -72,6 +74,7 @@ export default function SendDetailsScreen() {
   });
   const [amountError, setAmountError] = useState<string | null>(null);
   const [sendingTransaction, setSendingTransaction] = useState(false);
+  const [preparingAddresses, setPreparingAddresses] = useState(false);
   const [transactionResult, setTransactionResult] = useState<{
     txId?: { fee: string; hash: string };
     error?: string;
@@ -331,6 +334,28 @@ export default function SendDetailsScreen() {
   }, [recipientAddress, amount, tokenBalance, inputMode]);
 
   const handleSend = useCallback(async () => {
+    const networkType = getNetworkType(networkId);
+
+    if (!hasUsableAddress(addresses, networkType)) {
+      setPreparingAddresses(true);
+      try {
+        const resolvedAddresses = await ensureWalletAddresses(true, [networkType]);
+
+        if (!hasUsableAddress(resolvedAddresses, networkType)) {
+          throw new Error(`Wallet address for ${networkId} is not ready`);
+        }
+      } catch (error) {
+        console.error('Failed to prepare wallet addresses before send:', error);
+        Alert.alert(
+          'Wallet Not Ready',
+          'Midori could not prepare your wallet addresses yet. Please try again before sending funds.'
+        );
+        setPreparingAddresses(false);
+        return;
+      }
+      setPreparingAddresses(false);
+    }
+
     if (!validateTransaction()) {
       return;
     }
@@ -339,7 +364,6 @@ export default function SendDetailsScreen() {
     setTransactionResult(null);
 
     try {
-      const networkType = getNetworkType(networkId);
       const assetTicker = getAssetTicker(tokenId);
 
       // Convert fiat to token amount if in fiat mode
@@ -378,6 +402,8 @@ export default function SendDetailsScreen() {
     refreshWalletBalance,
     inputMode,
     tokenPrice,
+    addresses,
+    ensureWalletAddresses,
   ]);
 
   const handleConfirmSend = useCallback(async () => {
@@ -415,6 +441,11 @@ export default function SendDetailsScreen() {
   const isUseMaxDisabled = useMemo(() => {
     return tokenId.toLowerCase() !== 'btc' && gasEstimate.fee === undefined;
   }, [tokenId, gasEstimate.fee]);
+
+  const isPreparingWallet = preparingAddresses || isResolvingAddresses;
+  const isSendDisabled = Boolean(
+    amountError || !amount || !recipientAddress || sendingTransaction || isPreparingWallet
+  );
 
   return (
     <>
@@ -545,20 +576,18 @@ export default function SendDetailsScreen() {
               <TouchableOpacity
                 style={[
                   styles.sendButton,
-                  (amountError || !amount || !recipientAddress || sendingTransaction) &&
-                    styles.sendButtonDisabled,
+                  isSendDisabled && styles.sendButtonDisabled,
                 ]}
                 onPress={handleSend}
-                disabled={!!(amountError || !amount || !recipientAddress || sendingTransaction)}
+                disabled={isSendDisabled}
               >
                 <Text
                   style={[
                     styles.sendButtonText,
-                    (amountError || !amount || !recipientAddress || sendingTransaction) &&
-                      styles.sendButtonTextDisabled,
+                    isSendDisabled && styles.sendButtonTextDisabled,
                   ]}
                 >
-                  {sendingTransaction ? 'Sending...' : 'Send'}
+                  {isPreparingWallet ? 'Preparing wallet...' : sendingTransaction ? 'Sending...' : 'Send'}
                 </Text>
               </TouchableOpacity>
             </View>

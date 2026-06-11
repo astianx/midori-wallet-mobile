@@ -26,7 +26,7 @@ export default function ImportNameWalletScreen() {
   const navigation = useNavigation();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const { createWallet } = useWallet();
+  const { createWallet, resolveWalletAddresses } = useWallet();
   const [walletName, setWalletName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
   const [isImporting, setIsImporting] = useState(false);
@@ -43,8 +43,8 @@ export default function ImportNameWalletScreen() {
     setIsImporting(true);
 
     try {
-      // Use the context's createWallet method which handles everything including unlocking
-      await createWallet({ name: walletName, mnemonic: seedPhrase });
+      const wallet = await createWallet({ name: walletName, mnemonic: seedPhrase });
+      await resolveWalletAddresses({ enabledAssets: wallet?.enabledAssets, forceUpdate: true });
       await setAvatar(selectedAvatar.id);
 
       toast.success('Your wallet has been imported successfully.');
@@ -138,7 +138,7 @@ export default function ImportNameWalletScreen() {
                   { marginLeft: 8 },
                 ]}
               >
-                Importing...
+                Preparing wallet...
               </Text>
             </View>
           ) : (

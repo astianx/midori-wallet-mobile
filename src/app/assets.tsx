@@ -1,8 +1,9 @@
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { AssetTicker, useWallet } from '@tetherto/wdk-react-native-provider';
+import { AssetTicker } from '@tetherto/wdk-react-native-provider';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
+import { useWalletReadiness } from '@/hooks/use-wallet-readiness';
 import React, { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset, assetConfig } from '../config/assets';
 import formatAmount from '@/utils/format-amount';
@@ -14,8 +15,22 @@ import { colors } from '@/constants/colors';
 export default function AssetsScreen() {
   const insets = useSafeAreaInsets();
   const router = useDebouncedNavigation();
-  const { wallet, balances } = useWallet();
+  const { wallet, balances, hasAnyAddress, isResolvingAddresses } = useWalletReadiness();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [addressPreparationTimedOut, setAddressPreparationTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (hasAnyAddress || !isResolvingAddresses) {
+      setAddressPreparationTimedOut(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setAddressPreparationTimedOut(true);
+    }, 12000);
+
+    return () => clearTimeout(timeout);
+  }, [hasAnyAddress, isResolvingAddresses]);
 
   // Calculate aggregated balances by denomination from real wallet data
   const getAssetsWithFiatValue = async () => {
@@ -121,11 +136,20 @@ export default function AssetsScreen() {
               </View>
             </TouchableOpacity>
           ))
+        ) : !hasAnyAddress && isResolvingAddresses && !addressPreparationTimedOut ? (
+          <View style={styles.noAssetsContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.noAssetsText}>Preparing wallet addresses...</Text>
+          </View>
         ) : (
           <View style={styles.noAssetsContainer}>
-            <Text style={styles.noAssetsText}>No assets found</Text>
+            <Text style={styles.noAssetsText}>No funded assets yet</Text>
             <Text style={styles.noAssetsSubtext}>
-              Your wallet assets will appear here once you have a balance
+              {!hasAnyAddress && addressPreparationTimedOut
+                ? 'Wallet addresses are taking too long to prepare. Go back and try Send or Receive again to retry.'
+                : balances.isLoading
+                ? 'Balances are still updating. Receive funds and they will appear here.'
+                : 'Receive funds and your balances will appear here.'}
             </Text>
           </View>
         )}

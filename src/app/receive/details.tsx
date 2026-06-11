@@ -24,6 +24,7 @@ export default function ReceiveQRCodeScreen() {
   };
 
   const isEvmReceiveNetwork = EVM_RECEIVE_NETWORK_IDS.has(networkId);
+  const hasAddress = typeof address === 'string' && address.trim().length > 0;
 
   const handleBack = useCallback(() => {
     router.back();
@@ -35,6 +36,11 @@ export default function ReceiveQRCodeScreen() {
   }, [router]);
 
   const handleCopyAddress = useCallback(async () => {
+    if (!hasAddress) {
+      toast.error('Receive address is not ready yet');
+      return;
+    }
+
     try {
       await Clipboard.setStringAsync(address);
       toast.success('Address copied to clipboard');
@@ -42,9 +48,14 @@ export default function ReceiveQRCodeScreen() {
       console.error('Error copying address:', error);
       toast.error('Failed to copy address');
     }
-  }, [address]);
+  }, [address, hasAddress]);
 
   const handleShareAddress = useCallback(async () => {
+    if (!hasAddress) {
+      toast.error('Receive address is not ready yet');
+      return;
+    }
+
     try {
       await RNShare.share({
         message: `${tokenName} Address (${networkName}): ${address}`,
@@ -53,7 +64,7 @@ export default function ReceiveQRCodeScreen() {
     } catch (error) {
       console.error('Error sharing address:', error);
     }
-  }, [address, tokenName, networkName]);
+  }, [address, hasAddress, tokenName, networkName]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -75,13 +86,19 @@ export default function ReceiveQRCodeScreen() {
           </Text>
         </View>
 
-        <QRCode
-          value={address}
-          label="Scan QR code"
-          size={200}
-          color={colors.primary}
-          containerStyle={styles.qrSection}
-        />
+        {hasAddress ? (
+          <QRCode
+            value={address}
+            label="Scan QR code"
+            size={200}
+            color={colors.primary}
+            containerStyle={styles.qrSection}
+          />
+        ) : (
+          <View style={[styles.qrSection, styles.addressPendingSection]}>
+            <Text style={styles.addressPendingText}>Receive address is still being prepared.</Text>
+          </View>
+        )}
 
         <View style={styles.addressSection}>
           <Text style={styles.addressLabel}>{isEvmReceiveNetwork ? 'EVM address' : 'Receive address'}</Text>
@@ -91,7 +108,7 @@ export default function ReceiveQRCodeScreen() {
 
           <View style={styles.addressContainer}>
             <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
-              {address}
+              {hasAddress ? address : 'Address pending'}
             </Text>
           </View>
 
@@ -99,6 +116,7 @@ export default function ReceiveQRCodeScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.copyButton]}
               onPress={handleCopyAddress}
+              disabled={!hasAddress}
               activeOpacity={0.7}
             >
               <Copy size={20} color={colors.white} />
@@ -108,6 +126,7 @@ export default function ReceiveQRCodeScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.shareButton]}
               onPress={handleShareAddress}
+              disabled={!hasAddress}
               activeOpacity={0.7}
             >
               <Share size={20} color={colors.white} />
@@ -165,6 +184,16 @@ const styles = StyleSheet.create({
   },
   qrSection: {
     marginBottom: 40,
+  },
+  addressPendingSection: {
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressPendingText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
   },
   addressSection: {
     alignItems: 'center',

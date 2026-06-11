@@ -10,34 +10,43 @@ export default function CompleteScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ walletName: string; mnemonic: string }>();
-  const { createWallet, isLoading } = useWallet();
+  const { createWallet, isInitialized, isLoading, resolveWalletAddresses } = useWallet();
   const [walletCreated, setWalletCreated] = useState(false);
+  const [createAttempted, setCreateAttempted] = useState(false);
+  const [loadingText, setLoadingText] = useState('Starting WDK services...');
 
   useEffect(() => {
-    // Auto-create wallet when screen loads
-    createWalletWithWDK();
+    if (isInitialized && !createAttempted) {
+      createWalletWithWDK();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isInitialized, createAttempted]);
 
   const createWalletWithWDK = async () => {
-    if (walletCreated) return;
+    if (walletCreated || createAttempted || !isInitialized) return;
+
+    setCreateAttempted(true);
+    setLoadingText('Creating encrypted wallet...');
 
     try {
       const walletName = params.walletName || 'My Wallet';
       const mnemonic = params.mnemonic.split(',').join(' ');
 
-      // Use the wallet context to create the wallet
-      await createWallet({
+      const wallet = await createWallet({
         name: walletName,
         mnemonic,
       });
 
+      setLoadingText('Preparing receive addresses...');
+      await resolveWalletAddresses({ enabledAssets: wallet?.enabledAssets, forceUpdate: true });
+
       setWalletCreated(true);
     } catch (error) {
       console.error('Failed to create wallet:', error);
+      setCreateAttempted(false);
       Alert.alert(
         'Wallet Creation Failed',
-        'There was an issue creating your wallet. Please try again.',
+        'There was an issue preparing your wallet addresses. Please try again.',
         [{ text: 'Retry', onPress: () => createWalletWithWDK() }]
       );
     }
@@ -72,7 +81,7 @@ export default function CompleteScreen() {
         </Text>
         {generalLoadingStatus && (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Initializing wallet...</Text>
+            <Text style={styles.loadingText}>{loadingText}</Text>
           </View>
         )}
       </View>

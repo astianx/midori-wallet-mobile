@@ -1,12 +1,13 @@
 import { assetConfig } from '@/config/assets';
 import { useLocalSearchParams } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
+import { useWalletReadiness } from '@/hooks/use-wallet-readiness';
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
 
-import { AssetTicker, useWallet } from '@tetherto/wdk-react-native-provider';
+import { AssetTicker } from '@tetherto/wdk-react-native-provider';
 import { AssetSelector, type Token } from '@tetherto/wdk-uikit-react-native';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import formatAmount from '@/utils/format-amount';
@@ -19,7 +20,7 @@ export default function SelectTokenScreen() {
   const insets = useSafeAreaInsets();
   const router = useDebouncedNavigation();
   const params = useLocalSearchParams();
-  const { wallet, balances } = useWallet();
+  const { wallet, balances } = useWalletReadiness();
 
   // Get the scanned address from params (passed from QR scanner)
   const { scannedAddress } = params as { scannedAddress?: string };

@@ -1,15 +1,17 @@
 import Header from '@/components/header';
 import { assetConfig } from '@/config/assets';
 import { Network, networkConfigs } from '@/config/networks';
-import { NetworkType, useWallet } from '@tetherto/wdk-react-native-provider';
+import { hasUsableAddress, useWalletReadiness } from '@/hooks/use-wallet-readiness';
+import { NetworkType } from '@tetherto/wdk-react-native-provider';
 import { useLocalSearchParams } from 'expo-router';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
-import React, { useCallback, useMemo } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
 
 interface NetworkOption extends Network {
+  networkType: NetworkType;
   address?: string;
   hasAddress: boolean;
   description?: string;
@@ -30,7 +32,6 @@ const NETWORK_DESCRIPTIONS = {
 export default function ReceiveSelectNetworkScreen() {
   const insets = useSafeAreaInsets();
   const router = useDebouncedNavigation();
-  const { addresses } = useWallet();
   const params = useLocalSearchParams();
 
   const { tokenId, tokenSymbol, tokenName } = params as {
@@ -39,7 +40,74 @@ export default function ReceiveSelectNetworkScreen() {
     tokenName: string;
   };
 
-  // Get available networks for the selected token
+  const tokenNetworks = useMemo(() => {
+    const tokenConfig = assetConfig[tokenId];
+    return tokenConfig?.supportedNetworks ?? [];
+  }, [tokenId]);
+
+  const { addresses, ensureWalletAddresses, isResolvingAddresses, hasRequiredAddresses } =
+    useWalletReadiness(tokenNetworks);
+  const [addressPreparationTimedOut, setAddressPreparationTimedOut] = useState(false);
+  const [addressPreparationAttempted, setAddressPreparationAttempted] = useState(false);
+
+  useEffect(() => {
+    setAddressPreparationAttempted(false);
+    setAddressPreparationTimedOut(false);
+  }, [tokenId]);
+
+  useEffect(() => {
+    if (
+      tokenNetworks.length === 0 ||
+      hasRequiredAddresses ||
+      isResolvingAddresses ||
+      addressPreparationAttempted
+    ) {
+      return;
+    }
+
+    setAddressPreparationAttempted(true);
+    let cancelled = false;
+
+    const prepareNetworks = async () => {
+      for (const networkType of tokenNetworks) {
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          await ensureWalletAddresses(false, [networkType]);
+        } catch (error) {
+          console.error(`Failed to prepare ${networkType} receive address:`, error);
+        }
+      }
+    };
+
+    prepareNetworks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    tokenNetworks,
+    hasRequiredAddresses,
+    isResolvingAddresses,
+    addressPreparationAttempted,
+    ensureWalletAddresses,
+  ]);
+
+  useEffect(() => {
+    if (!isResolvingAddresses) {
+      setAddressPreparationTimedOut(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setAddressPreparationTimedOut(true);
+    }, 12000);
+
+    return () => clearTimeout(timeout);
+  }, [isResolvingAddresses]);
+
   const networks: NetworkOption[] = useMemo(() => {
     const tokenConfig = assetConfig[tokenId];
     if (!tokenConfig) {
@@ -48,20 +116,45 @@ export default function ReceiveSelectNetworkScreen() {
 
     return tokenConfig.supportedNetworks.map(networkType => {
       const network = networkConfigs[networkType];
-      const address = addresses?.[network.id as NetworkType];
+      const address = addresses?.[networkType];
       return {
         ...network,
+        networkType,
         address,
-        hasAddress: Boolean(address),
-        description: NETWORK_DESCRIPTIONS[network.id as NetworkType],
+        hasAddress: hasUsableAddress(addresses, networkType),
+        description: NETWORK_DESCRIPTIONS[networkType],
       };
     });
   }, [tokenId, addresses]);
 
   const handleSelectNetwork = useCallback(
-    (network: NetworkOption) => {
+    async (network: NetworkOption) => {
       if (!network.hasAddress) {
-        return; // Don't allow selection if no address available
+        try {
+          setAddressPreparationTimedOut(false);
+          setAddressPreparationAttempted(true);
+          const resolvedAddresses = await ensureWalletAddresses(true, [network.networkType]);
+          const resolvedAddress = resolvedAddresses[network.networkType];
+
+          if (!resolvedAddress) {
+            return;
+          }
+
+          router.push({
+            pathname: '/receive/details',
+            params: {
+              tokenId,
+              tokenSymbol,
+              tokenName,
+              networkId: network.id,
+              networkName: network.name,
+              address: resolvedAddress,
+            },
+          });
+        } catch (error) {
+          console.error('Failed to resolve receive address:', error);
+        }
+        return;
       }
 
       router.push({
@@ -76,50 +169,58 @@ export default function ReceiveSelectNetworkScreen() {
         },
       });
     },
-    [router, tokenId, tokenSymbol, tokenName]
+    [router, tokenId, tokenSymbol, tokenName, ensureWalletAddresses]
   );
 
   const renderNetwork = ({ item }: { item: NetworkOption }) => {
     const isDisabled = !item.hasAddress;
+    const isPending = isDisabled && isResolvingAddresses && !addressPreparationTimedOut;
 
     return (
       <TouchableOpacity
-        style={[styles.networkRow, isDisabled && styles.networkRowDisabled]}
+        style={[styles.networkRow, isPending && styles.networkRowDisabled]}
         onPress={() => handleSelectNetwork(item)}
-        disabled={isDisabled}
-        activeOpacity={isDisabled ? 1 : 0.7}
+        disabled={isPending}
+        activeOpacity={isPending ? 1 : 0.7}
       >
         <View style={styles.networkInfo}>
           <View
             style={[
               styles.networkIcon,
               { backgroundColor: item.color },
-              isDisabled && styles.networkIconDisabled,
+              isPending && styles.networkIconDisabled,
             ]}
           >
             {typeof item.icon === 'string' ? (
-              <Text style={[styles.networkIconText, isDisabled && styles.networkIconTextDisabled]}>
+              <Text style={[styles.networkIconText, isPending && styles.networkIconTextDisabled]}>
                 {item.icon}
               </Text>
             ) : (
               <Image
                 source={item.icon}
-                style={[styles.networkIconImage, isDisabled && styles.networkIconImageDisabled]}
+                style={[styles.networkIconImage, isPending && styles.networkIconImageDisabled]}
               />
             )}
           </View>
           <View style={styles.networkDetails}>
-            <Text style={[styles.networkName, isDisabled && styles.networkNameDisabled]}>
+            <Text style={[styles.networkName, isPending && styles.networkNameDisabled]}>
               {item.name}
             </Text>
             {item.description && (
               <Text
-                style={[styles.networkDescription, isDisabled && styles.networkDescriptionDisabled]}
+                style={[styles.networkDescription, isPending && styles.networkDescriptionDisabled]}
               >
                 {item.description}
               </Text>
             )}
-            {isDisabled && <Text style={styles.noAddressLabel}>Address not available</Text>}
+            {isPending ? (
+              <View style={styles.pendingAddressRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.pendingAddressLabel}>Preparing address...</Text>
+              </View>
+            ) : (
+              isDisabled && <Text style={styles.noAddressLabel}>Tap to retry address setup</Text>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -230,6 +331,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.error,
     marginTop: 4,
+    fontWeight: '500',
+  },
+  pendingAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  pendingAddressLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
 });

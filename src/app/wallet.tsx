@@ -1,7 +1,8 @@
 import { BalanceLoader } from '@/components/BalanceLoader';
-import { AssetTicker, useWallet } from '@tetherto/wdk-react-native-provider';
+import { AssetTicker } from '@tetherto/wdk-react-native-provider';
 import { Balance } from '@tetherto/wdk-uikit-react-native';
 import { useDebouncedNavigation } from '@/hooks/use-debounced-navigation';
+import { useWalletReadiness } from '@/hooks/use-wallet-readiness';
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -15,6 +16,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Alert,
   Image,
   Linking,
   RefreshControl,
@@ -65,15 +67,24 @@ export default function WalletScreen() {
     balances,
     addresses,
     transactions: walletTransactions,
-  } = useWallet();
+    hasAnyAddress,
+    isResolvingAddresses,
+    ensureWalletAddresses,
+  } = useWalletReadiness();
   const [refreshing, setRefreshing] = useState(false);
+  const [preparingWalletAction, setPreparingWalletAction] = useState(false);
   const [aggregatedBalances, setAggregatedBalances] = useState<AggregatedBalance>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [addressPreparationTimedOut, setAddressPreparationTimedOut] = useState(false);
   const avatar = useWalletAvatar();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const hasWallet = !!wallet;
+  const isPreparingAddressesBase = Boolean(
+    wallet && isUnlocked && !hasAnyAddress && (isResolvingAddresses || preparingWalletAction)
+  );
+  const isPreparingAddresses = isPreparingAddressesBase && !addressPreparationTimedOut;
 
   // Redirect to authorization if wallet is not unlocked
   useEffect(() => {
@@ -81,6 +92,19 @@ export default function WalletScreen() {
       router.replace('/authorize');
     }
   }, [hasWallet, isUnlocked, router]);
+
+  useEffect(() => {
+    if (!isPreparingAddressesBase || hasAnyAddress) {
+      setAddressPreparationTimedOut(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setAddressPreparationTimedOut(true);
+    }, 12000);
+
+    return () => clearTimeout(timeout);
+  }, [isPreparingAddressesBase, hasAnyAddress]);
 
   // Calculate aggregated balances by denomination
   const getAggregatedBalances = async () => {
@@ -100,12 +124,16 @@ export default function WalletScreen() {
       const config = assetConfig[denomination];
       if (!config) return null;
 
-      // Calculate fiat value using pricing service
-      const fiatValue = await pricingService.getFiatValue(
-        totalBalance,
-        denomination as AssetTicker,
-        FiatCurrency.USD
-      );
+      let fiatValue = 0;
+      try {
+        fiatValue = await pricingService.getFiatValue(
+          totalBalance,
+          denomination as AssetTicker,
+          FiatCurrency.USD
+        );
+      } catch (error) {
+        console.warn('Failed to calculate fiat balance:', error);
+      }
 
       return {
         denomination,
@@ -202,16 +230,48 @@ export default function WalletScreen() {
     return result;
   };
 
-  const handleSendPress = () => {
-    router.push('/send/select-token');
+  const prepareWalletAction = async () => {
+    if (!wallet || !isUnlocked) {
+      return false;
+    }
+
+    if (hasAnyAddress) {
+      return true;
+    }
+
+    setPreparingWalletAction(true);
+    setAddressPreparationTimedOut(false);
+    try {
+      await ensureWalletAddresses(true);
+      return true;
+    } catch (error) {
+      console.error('Failed to prepare wallet addresses:', error);
+      Alert.alert(
+        'Wallet Not Ready',
+        'Midori could not prepare a receive address yet. Please try again before sending or receiving funds.'
+      );
+      return false;
+    } finally {
+      setPreparingWalletAction(false);
+    }
   };
 
-  const handleReceivePress = () => {
-    router.push('/receive/select-token');
+  const handleSendPress = async () => {
+    if (await prepareWalletAction()) {
+      router.push('/send/select-token');
+    }
   };
 
-  const handleQRPress = () => {
-    router.push('/scan-qr');
+  const handleReceivePress = async () => {
+    if (await prepareWalletAction()) {
+      router.push('/receive/select-token');
+    }
+  };
+
+  const handleQRPress = async () => {
+    if (await prepareWalletAction()) {
+      router.push('/scan-qr');
+    }
   };
 
   const handleSeeAllTokens = () => {
@@ -244,12 +304,18 @@ export default function WalletScreen() {
   };
 
   useEffect(() => {
-    getAggregatedBalances().then(setAggregatedBalances);
+    getAggregatedBalances().then(setAggregatedBalances).catch(error => {
+      console.warn('Failed to aggregate balances:', error);
+      setAggregatedBalances([]);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balances]);
 
   useEffect(() => {
-    getTransactions().then(setTransactions);
+    getTransactions().then(setTransactions).catch(error => {
+      console.warn('Failed to load wallet activity:', error);
+      setTransactions([]);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletTransactions?.list, addresses]);
 
@@ -340,7 +406,7 @@ export default function WalletScreen() {
               isLoading={isLoading}
               Loader={BalanceLoader}
             />
-            {balances.isLoading ? (
+            {balances.isLoading || isPreparingAddresses ? (
               <View style={{ top: 16, marginRight: 8 }}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>
@@ -387,9 +453,24 @@ export default function WalletScreen() {
                 </TouchableOpacity>
               );
             })
+          ) : isPreparingAddresses ? (
+            <View style={styles.noAssetsContainer}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.noAssetsText}>Preparing wallet addresses...</Text>
+            </View>
           ) : (
             <View style={styles.noAssetsContainer}>
-              <Text style={styles.noAssetsText}>No assets found</Text>
+              <Text style={styles.noAssetsText}>
+                {hasAnyAddress ? 'No funded assets yet' : 'Wallet addresses are not ready yet'}
+              </Text>
+              {balances.isLoading && (
+                <Text style={styles.noAssetsSubtext}>Balances are still updating.</Text>
+              )}
+              {!hasAnyAddress && addressPreparationTimedOut && (
+                <TouchableOpacity style={styles.retryAddressButton} onPress={prepareWalletAction}>
+                  <Text style={styles.retryAddressText}>Retry address setup</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -465,16 +546,38 @@ export default function WalletScreen() {
 
       {/* Bottom Actions */}
       <View style={[styles.bottomActions, { marginBottom: insets.bottom }]}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleSendPress}>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            isPreparingAddresses && styles.actionButtonDisabled,
+          ]}
+          onPress={handleSendPress}
+          disabled={isPreparingAddresses}
+        >
           <ArrowUpRight size={20} color={colors.white} />
           <Text style={styles.actionButtonText}>Send</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
-          <QrCode size={24} color={colors.black} />
+        <TouchableOpacity
+          style={[styles.qrButton, isPreparingAddresses && styles.qrButtonDisabled]}
+          onPress={handleQRPress}
+          disabled={isPreparingAddresses}
+        >
+          {isPreparingAddresses ? (
+            <ActivityIndicator size="small" color={colors.black} />
+          ) : (
+            <QrCode size={24} color={colors.black} />
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleReceivePress}>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            isPreparingAddresses && styles.actionButtonDisabled,
+          ]}
+          onPress={handleReceivePress}
+          disabled={isPreparingAddresses}
+        >
           <ArrowDownLeft size={20} color={colors.white} />
           <Text style={styles.actionButtonText}>Receive</Text>
         </TouchableOpacity>
@@ -581,6 +684,25 @@ const styles = StyleSheet.create({
   noAssetsText: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  noAssetsSubtext: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryAddressButton: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  retryAddressText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   assetAmount: {
     fontSize: 16,
@@ -704,6 +826,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
   },
+  actionButtonDisabled: {
+    opacity: 0.55,
+  },
   actionButtonText: {
     fontSize: 12,
     color: colors.textSecondary,
@@ -717,5 +842,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 20,
     backgroundColor: colors.primary,
+  },
+  qrButtonDisabled: {
+    opacity: 0.75,
   },
 });

@@ -1,10 +1,10 @@
 import { DarkTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import { WalletProvider, WDKService } from '@tetherto/wdk-react-native-provider';
+import { WalletProvider } from '@tetherto/wdk-react-native-provider';
 import { ThemeProvider } from '@tetherto/wdk-uikit-react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -24,18 +24,20 @@ const CustomDarkTheme = {
 };
 
 export default function RootLayout() {
-  useEffect(() => {
-    const initApp = async () => {
-      try {
-        await WDKService.initialize();
-      } catch (error) {
-        console.error('Failed to initialize services in app layout:', error);
-      } finally {
-        SplashScreen.hideAsync();
-      }
-    };
+  const walletProviderConfig = useMemo(
+    () => ({
+      indexer: {
+        apiKey: process.env.EXPO_PUBLIC_WDK_INDEXER_API_KEY ?? '',
+        url: process.env.EXPO_PUBLIC_WDK_INDEXER_BASE_URL ?? 'https://wdk-api.tether.io',
+      },
+      chains: getChainsConfig(),
+      enableCaching: true,
+    }),
+    []
+  );
 
-    initApp();
+  useEffect(() => {
+    SplashScreen.hideAsync();
   }, []);
 
   return (
@@ -47,14 +49,7 @@ export default function RootLayout() {
         }}
       >
         <WalletProvider
-          config={{
-            indexer: {
-              apiKey: process.env.EXPO_PUBLIC_WDK_INDEXER_API_KEY!,
-              url: process.env.EXPO_PUBLIC_WDK_INDEXER_BASE_URL!,
-            },
-            chains: getChainsConfig(),
-            enableCaching: true,
-          }}
+          config={walletProviderConfig}
         >
           <NavigationThemeProvider value={CustomDarkTheme}>
             <View style={{ flex: 1, backgroundColor: colors.background }}>

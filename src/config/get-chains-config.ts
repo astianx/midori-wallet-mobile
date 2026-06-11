@@ -63,11 +63,13 @@ const getChainsConfig = () => {
       port: 50001,
     },
     tron: {
-      chainId: 3448148188,
+      chainId: '3448148188',
       provider: 'https://trongrid.io',
       gasFreeProvider: 'https://gasfree.io',
-      apiKey: process.env.EXPO_PUBLIC_TRON_API_KEY!,
-      apiSecret: process.env.EXPO_PUBLIC_TRON_API_SECRET!,
+      apiKey: process.env.EXPO_PUBLIC_TRON_API_KEY ?? '',
+      apiSecret: process.env.EXPO_PUBLIC_TRON_API_SECRET ?? '',
+      gasFreeApiKey: process.env.EXPO_PUBLIC_TRON_API_KEY ?? '',
+      gasFreeApiSecret: process.env.EXPO_PUBLIC_TRON_API_SECRET ?? '',
       serviceProvider: 'TKtWbdzEq5ss9vTS9kwRhBp5mXmBfBns3E',
       verifyingContract: 'THQGuFzL87ZqhxkgqYEryRAd7gqFqL5rdc',
       transferMaxFee: 10000000,
@@ -76,6 +78,11 @@ const getChainsConfig = () => {
       paymasterToken: {
         address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
       },
+    },
+    solana: {
+      rpcUrl: process.env.EXPO_PUBLIC_SOLANA_RPC_URL ?? 'https://api.mainnet-beta.solana.com',
+      wsUrl: process.env.EXPO_PUBLIC_SOLANA_WS_URL ?? 'wss://api.mainnet-beta.solana.com',
+      transferMaxFee: 50000,
     },
   };
 };
