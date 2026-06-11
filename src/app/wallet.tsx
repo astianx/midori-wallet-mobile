@@ -161,30 +161,6 @@ export default function WalletScreen() {
     extrapolate: 'clamp',
   });
 
-  const suggestions = [
-    {
-      id: 1,
-      icon: Star,
-      title: 'Star repo on GitHub',
-      color: colors.primary,
-      url: 'https://github.com/tetherto/wdk-starter-react-native',
-    },
-    {
-      id: 2,
-      icon: Shield,
-      title: 'Explore the WDK docs',
-      color: colors.primary,
-      url: 'https://docs.wallet.tether.io/',
-    },
-    {
-      id: 3,
-      icon: Palette,
-      title: 'Explore the WDK UI Kit',
-      color: colors.primary,
-      url: 'https://github.com/tetherto/wdk-uikit-react-native',
-    },
-  ];
-
   // Get real transactions from wallet data
   const getTransactions = async () => {
     if (!walletTransactions) return [];
@@ -477,28 +453,6 @@ export default function WalletScreen() {
           <TouchableOpacity onPress={handleSeeAllTokens}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Suggestions */}
-        <View style={styles.suggestionsSection}>
-          <View style={styles.suggestionsHeader}>
-            <Text style={styles.sectionTitle}>Suggestions</Text>
-          </View>
-
-          <View style={styles.suggestionsGrid}>
-            {suggestions.map(suggestion => (
-              <TouchableOpacity
-                onPress={() => {
-                  Linking.openURL(suggestion.url);
-                }}
-                key={suggestion.id}
-                style={styles.suggestionCard}
-              >
-                <suggestion.icon size={24} color={suggestion.color} />
-                <Text style={styles.suggestionText}>{suggestion.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
         {/* Activity */}
