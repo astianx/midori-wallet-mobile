@@ -17,7 +17,7 @@ export const config = {
       'appium:deviceName': 'iPhone 17 Pro',
       'appium:app': path.join(__dirname, 'apps/wdkstarterreactnative.app'),
       'appium:automationName': 'XCUITest',
-      'appium:bundleId': 'com.anonymous.wdkstarterreactnative',
+      'appium:bundleId': 'org.midori.wallet.mobile',
       'appium:noReset': false,
       'appium:fullReset': false,
       'appium:newCommandTimeout': 600,
