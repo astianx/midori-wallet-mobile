@@ -663,6 +663,33 @@ function patchWdkDirectedNetworkResolution() {
         replacement: usdtMapReplacement,
       },
       {
+        label: 'USDT balance network coverage cleanup',
+        target: `export const AssetBalanceMap = {
+  [AssetTicker.BTC]: {
+    [NetworkType.SEGWIT]: 'bitcoin',
+  },
+  [AssetTicker.USDT]: {
+    [NetworkType.ETHEREUM]: 'ethereum',
+    [NetworkType.POLYGON]: 'polygon',
+    [NetworkType.ARBITRUM]: 'arbitrum',
+    [NetworkType.TON]: 'ton',
+    [NetworkType.TRON]: 'tron',
+    [NetworkType.SOLANA]: 'solana',
+  },
+  [AssetTicker.XAUT]: {`,
+        replacement: `export const AssetBalanceMap = {
+  [AssetTicker.BTC]: {
+    [NetworkType.SEGWIT]: 'bitcoin',
+  },
+  [AssetTicker.USDT]: {
+    [NetworkType.ETHEREUM]: 'ethereum',
+    [NetworkType.POLYGON]: 'polygon',
+    [NetworkType.ARBITRUM]: 'arbitrum',
+    [NetworkType.TON]: 'ton',
+  },
+  [AssetTicker.XAUT]: {`,
+      },
+      {
         marker: 'solana?: {',
         label: 'Solana chains config type',
         target: `  bitcoin?: BitcoinChainConfig;
@@ -706,6 +733,33 @@ function patchWdkDirectedNetworkResolution() {
         target: usdtMapTargetCompiled,
         replacement: usdtMapReplacementCompiled,
       },
+      {
+        label: 'compiled USDT balance network coverage cleanup',
+        target: `export const AssetBalanceMap = {
+  [AssetTicker.BTC]: {
+    [NetworkType.SEGWIT]: 'bitcoin'
+  },
+  [AssetTicker.USDT]: {
+    [NetworkType.ETHEREUM]: 'ethereum',
+    [NetworkType.POLYGON]: 'polygon',
+    [NetworkType.ARBITRUM]: 'arbitrum',
+    [NetworkType.TON]: 'ton',
+    [NetworkType.TRON]: 'tron',
+    [NetworkType.SOLANA]: 'solana'
+  },
+  [AssetTicker.XAUT]: {`,
+        replacement: `export const AssetBalanceMap = {
+  [AssetTicker.BTC]: {
+    [NetworkType.SEGWIT]: 'bitcoin'
+  },
+  [AssetTicker.USDT]: {
+    [NetworkType.ETHEREUM]: 'ethereum',
+    [NetworkType.POLYGON]: 'polygon',
+    [NetworkType.ARBITRUM]: 'arbitrum',
+    [NetworkType.TON]: 'ton'
+  },
+  [AssetTicker.XAUT]: {`,
+      },
     ]
   );
 
@@ -722,6 +776,33 @@ function patchWdkDirectedNetworkResolution() {
         ton: string;
         tron: string;
         solana: string;`,
+      },
+      {
+        label: 'd.ts USDT balance network coverage cleanup',
+        target: `export declare const AssetBalanceMap: {
+    btc: {
+        bitcoin: string;
+    };
+    usdt: {
+        ethereum: string;
+        polygon: string;
+        arbitrum: string;
+        ton: string;
+        tron: string;
+        solana: string;
+    };
+    xaut: {`,
+        replacement: `export declare const AssetBalanceMap: {
+    btc: {
+        bitcoin: string;
+    };
+    usdt: {
+        ethereum: string;
+        polygon: string;
+        arbitrum: string;
+        ton: string;
+    };
+    xaut: {`,
       },
       {
         marker: 'solana?: {',
