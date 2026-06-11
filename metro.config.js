@@ -2,9 +2,15 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 const { configureMetroForWDK } = require('@tetherto/wdk-react-native-provider/metro-polyfills');
 
+// Root of the monorepo (one level above the mobile project)
+const monorepoRoot = path.resolve(__dirname, '..');
+
 const config = getDefaultConfig(__dirname);
 
 const { transformer, resolver } = config;
+
+// Watch the shared folder so Metro can resolve cross-project imports
+config.watchFolders = [monorepoRoot];
 
 config.transformer = {
   ...transformer,
@@ -16,7 +22,10 @@ config.resolver = {
   assetExts: resolver.assetExts.filter(ext => ext !== 'svg'),
   sourceExts: [...resolver.sourceExts, 'svg'],
   // Ensure module paths include root node_modules
-  nodeModulesPaths: [path.resolve(__dirname, 'node_modules')],
+  nodeModulesPaths: [
+    path.resolve(__dirname, 'node_modules'),
+    path.resolve(monorepoRoot, 'node_modules'),
+  ],
   alias: {
     '@': path.resolve(__dirname, 'src'),
   },
